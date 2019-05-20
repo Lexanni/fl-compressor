@@ -2,10 +2,11 @@ TEMPLATE = app
 CONFIG += console
 CONFIG -= app_bundle
 CONFIG -= qt
-CONFIG += -std=c++11
 
 SOURCES += \
-        main.cpp
+        main.cpp \
+    functions.cpp \
+    unit_tests.cpp
 
 HEADERS += \
-        catch.hpp
+    functions.h
