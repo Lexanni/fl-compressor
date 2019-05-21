@@ -2,7 +2,7 @@
 #include "functions.h"
 
 TEST_CASE( "getLocalSum", "[local_sum]" ) {
-    int ms[] = {
+    uint16_t ms[] = {
         7, 	2, 	6, 	7, 	5, 	1, 	8,
         5, 	4, 	9, 	9, 	9, 	6, 	3,
         5, 	2, 	6, 	5, 	6, 	1, 	7,
@@ -41,6 +41,7 @@ TEST_CASE("sgn_plus", "[sgn_plus]") {
 }
 
 TEST_CASE("mod_R", "[mod_R]") {
+    REQUIRE( mod_R(5, 32) == 5  );
     REQUIRE( mod_R(10, 5) ==  10);
     REQUIRE( mod_R(20, 5) == -12);
     REQUIRE( mod_R(16, 5) == -16);
@@ -48,7 +49,7 @@ TEST_CASE("mod_R", "[mod_R]") {
 }
 
 TEST_CASE("d", "[d]") {
-    int ms[] = {
+    uint16_t ms[] = {
         7, 	2, 	6, 	7, 	5, 	1, 	8,
         5, 	4, 	9, 	9, 	9, 	6, 	3,
         5, 	2, 	6, 	5, 	6, 	1, 	7,
@@ -64,7 +65,7 @@ TEST_CASE("d", "[d]") {
 }
 
 TEST_CASE("dN", "[dN]") {
-    int ms[] = {
+    uint16_t ms[] = {
         7, 	2, 	6, 	7, 	5, 	1, 	8,
         5, 	4, 	9, 	9, 	9, 	6, 	3,
         5, 	2, 	6, 	5, 	6, 	1, 	7,
@@ -80,7 +81,7 @@ TEST_CASE("dN", "[dN]") {
 }
 
 TEST_CASE("dW", "[dW]") {
-    int ms[] = {
+    uint16_t ms[] = {
         7, 	2, 	6, 	7, 	5, 	1, 	8,
         5, 	4, 	9, 	9, 	9, 	6, 	3,
         5, 	2, 	6, 	5, 	6, 	1, 	7,
@@ -96,7 +97,7 @@ TEST_CASE("dW", "[dW]") {
 }
 
 TEST_CASE("dNW", "[dNW]") {
-    int ms[] = {
+    uint16_t ms[] = {
         7, 	2, 	6, 	7, 	5, 	1, 	8,
         5, 	4, 	9, 	9, 	9, 	6, 	3,
         5, 	2, 	6, 	5, 	6, 	1, 	7,
@@ -112,7 +113,7 @@ TEST_CASE("dNW", "[dNW]") {
 }
 
 TEST_CASE("getU", "[getU]") {
-    int ms[4][15] = {
+    uint16_t ms[4][15] = {
         {
             2, 	8, 	7, 	3, 	9,
             3, 	4, 	3, 	7, 	5,
@@ -187,9 +188,15 @@ TEST_CASE("getPredictedD") {
 }
 
 TEST_CASE("getMappedPredictionResidual") {
-    REQUIRE(getMappedPredictionResidual( 5,  12, -20, 20) == 1);
-    REQUIRE(getMappedPredictionResidual( 5,   4, -20, 20) == 6);
-    REQUIRE(getMappedPredictionResidual(-8, -31, -20, 20) == 12);
+    CHECK(getMappedPredictionResidual( 5,  12, 0, 32) == 1);
+    CHECK(getMappedPredictionResidual( 9,  17, 0, 32) == 1);
+    CHECK(getMappedPredictionResidual( 9,  20, 0, 32) == 1);
+    CHECK(getMappedPredictionResidual( 8,   3, 0, 32) == 13);
+    CHECK(getMappedPredictionResidual( 4,   0, 0, 32) == 8);
+    CHECK(getMappedPredictionResidual( 13,  3, 0, 32) == 23);
+    CHECK(getMappedPredictionResidual( 7,   0, 0, 32) == 14);
+    CHECK(getMappedPredictionResidual( 6,   2, 0, 32) == 10);
+    CHECK(getMappedPredictionResidual( 5,   5, 0, 32) == 5);
 }
 
 TEST_CASE("updateW") {
@@ -246,6 +253,92 @@ TEST_CASE("updateW") {
     }
 }
 
+TEST_CASE("fun") {
+    uint16_t input[12 * 4 * 5] = {
+        100, 	101, 	100, 	100, 	101,
+        100, 	102, 	101, 	101, 	101,
+        102, 	100, 	100, 	100, 	103,
+        102, 	100, 	101, 	100, 	102,
+
+        100, 	104, 	100, 	102, 	100,
+        103, 	103, 	100, 	101, 	103,
+        102, 	102, 	100, 	100, 	100,
+        102, 	101, 	101, 	100, 	102,
+
+        102, 	100, 	101, 	101, 	101,
+        102, 	101, 	101, 	100, 	101,
+        102, 	100, 	105, 	100, 	100,
+        101, 	100, 	100, 	100, 	100,
+
+        100, 	101, 	101, 	100, 	101,
+        100, 	102, 	101, 	101, 	101,
+        102, 	100, 	100, 	100, 	103,
+        102, 	100, 	101, 	100, 	102,
+
+        100, 	104, 	100, 	102, 	100,
+        103, 	103, 	100, 	101, 	103,
+        102, 	102, 	100, 	100, 	100,
+        102, 	101, 	101, 	100, 	102,
+
+        102, 	100, 	101, 	101, 	101,
+        102, 	101, 	101, 	100, 	101,
+        102, 	100, 	105, 	100, 	100,
+        101, 	100, 	100, 	100, 	100,
+
+        100, 	101, 	101, 	100, 	101,
+        100, 	102, 	101, 	101, 	101,
+        102, 	100, 	100, 	100, 	103,
+        102, 	100, 	101, 	100, 	102,
+
+        100, 	104, 	100, 	102, 	100,
+        103, 	103, 	100, 	101, 	103,
+        102, 	102, 	100, 	100, 	100,
+        102, 	101, 	101, 	100, 	102,
+
+        102, 	100, 	101, 	101, 	101,
+        102, 	101, 	101, 	100, 	101,
+        102, 	100, 	105, 	100, 	100,
+        101, 	100, 	100, 	100, 	100,
+
+        100, 	101, 	101, 	100, 	101,
+        100, 	102, 	101, 	101, 	101,
+        102, 	100, 	100, 	100, 	103,
+        102, 	100, 	101, 	100, 	102,
+
+        100, 	104, 	100, 	102, 	100,
+        103, 	103, 	100, 	101, 	103,
+        102, 	102, 	100, 	100, 	100,
+        102, 	101, 	101, 	100, 	102,
+
+        102, 	100, 	101, 	101, 	101,
+        102, 	101, 	101, 	100, 	101,
+        102, 	100, 	105, 	100, 	100,
+        101, 	100, 	100, 	100, 	100
+    };
+
+    uint16_t output[12 * 4 * 5] = {0};
+
+    ImageMetadata imageMeta;
+    imageMeta.dynamicRange = 0;
+    imageMeta.xSize = 5;
+    imageMeta.ySize = 4;
+    imageMeta.zSize = 12;
+
+    PredictorMetadata predMeta;
+    predMeta.predictionBands = 2;
+    predMeta.predictionMode = 0;
+    predMeta.localSumType = 0;
+    predMeta.registerSize = 32;
+    predMeta.weightComponentResolution = 0;
+    predMeta.wuScalingExpChangeInterval = 0;
+    predMeta.wuScalingExpInitialParameter = 0;
+    predMeta.wuScalingExpFinalParameter = 15;
+    predMeta.weightInitMethod = 0;
+    predMeta.weightInitTableFlag = 0;
+    predMeta.weightInitResolution = 0;
+
+    fun(input, output, &imageMeta, &predMeta);
+}
 
 TEST_CASE("getCodeWordSize") {
     REQUIRE(getCodeWordSize(5, 6)     == 0);
@@ -257,7 +350,7 @@ TEST_CASE("getCodeWordSize") {
 
 TEST_CASE("Golomb") {
 
-    uint32_t input[3 * 4 * 5] = {
+    uint16_t input[3 * 4 * 5] = {
         1, 	1, 	0, 	0, 	1,
         0, 	2, 	1, 	1, 	1,
         2, 	0, 	0, 	0, 	3,
@@ -279,10 +372,10 @@ TEST_CASE("Golomb") {
     size_t outSize = 0;
 
     ImageMetadata imageMeta;
-    imageMeta.D = 16;
-    imageMeta.sizeX = 5;
-    imageMeta.sizeY = 4;
-    imageMeta.sizeZ = 3;
+    imageMeta.dynamicRange = 0;
+    imageMeta.xSize = 5;
+    imageMeta.ySize = 4;
+    imageMeta.zSize = 3;
 
     EncoderMetadata encoderMeta;
     encoderMeta.unaryLengthLimit = 8;
@@ -291,7 +384,13 @@ TEST_CASE("Golomb") {
     encoderMeta.rescalingCounterSize = 1;
 
     encodeGolomb(input,encodedOut, &outSize, &imageMeta, &encoderMeta);
-
     decodeGolomb(encodedOut, decodedOut, &imageMeta, &encoderMeta);
+
+    int size = 3 * 4 * 5;
+
+    for(int i = 0; i < size; i++) {
+        INFO("Index: " << i);
+        CHECK(input[i] == decodedOut[i]);
+    }
 
 }

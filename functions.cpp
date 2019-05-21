@@ -4,7 +4,7 @@
 #include <math.h>
 #include <string.h>
 
-int getLocalSum(int * currentBand, int sizeY, int sizeX, int y, int x) {
+int getLocalSum(uint16_t * currentBand, int sizeY, int sizeX, int y, int x) {
     int sNW, sN, sNE, sW;
     if (sizeX <= 0 || sizeY <= 0)
         return -1;
@@ -41,20 +41,20 @@ int sgn_plus(int val) {
 }
 
 int mod_R(int x, int R) {
-    return ((x + (1 << (R - 1))) % (1 << R)) - (1 << (R - 1));
+    return ((x + (1ll << (R - 1ll))) % (1ll << R)) - (1ll << (R - 1));
 }
 
-int d(int * currentBand, int sizeY, int sizeX, int y, int x) {
+int d(uint16_t * currentBand, int sizeY, int sizeX, int y, int x) {
     return (currentBand[sizeX * y + x] << 2) - getLocalSum(currentBand, sizeY, sizeX, y, x);
 }
 
-int dN(int * currentBand, int sizeY, int sizeX, int y, int x) {
+int dN(uint16_t * currentBand, int sizeY, int sizeX, int y, int x) {
     if(y == 0)
         return 0;
     return (currentBand[sizeX * (y - 1) + x] << 2) - getLocalSum(currentBand, sizeY, sizeX, y, x);
 }
 
-int dW(int * currentBand, int sizeY, int sizeX, int y, int x) {
+int dW(uint16_t * currentBand, int sizeY, int sizeX, int y, int x) {
     if(y == 0)
         return 0;
     if(x == 0)
@@ -62,7 +62,7 @@ int dW(int * currentBand, int sizeY, int sizeX, int y, int x) {
     return (currentBand[sizeX * y + (x - 1)] << 2) - getLocalSum(currentBand, sizeY, sizeX, y, x);
 }
 
-int dNW(int * currentBand, int sizeY, int sizeX, int y, int x) {
+int dNW(uint16_t * currentBand, int sizeY, int sizeX, int y, int x) {
     if(y == 0)
         return 0;
     if(x == 0)
@@ -70,9 +70,9 @@ int dNW(int * currentBand, int sizeY, int sizeX, int y, int x) {
     return (currentBand[sizeX * (y - 1) + (x - 1)] << 2) - getLocalSum(currentBand, sizeY, sizeX, y, x);
 }
 
-void getU(int * U, int P, int * image, int sizeY, int sizeX, int z, int y, int x) {
+void getU(int * U, int P, uint16_t * image, int sizeY, int sizeX, int z, int y, int x) {
     int bandSize = sizeY * sizeX;
-    int * currentBand = image + bandSize * z;
+    uint16_t * currentBand = image + bandSize * z;
 
     U[0] =  dN(currentBand, sizeY, sizeX, y, x);
     U[1] =  dW(currentBand, sizeY, sizeX, y, x);
@@ -89,7 +89,7 @@ void weightInitDefault(int * W, int om, int P) {
     if(P <= 0)
         return;
     W[3] = 7 * (1 << om) / 8;
-    for (int i = 1; i <= P; i++) {
+    for (int i = 1; i < P; i++) {
         W[3 + i] = W[3 + i - 1] / 8;
     }
 }
@@ -106,20 +106,20 @@ int getScalingExp(int D, int Om, int v_min, int v_max, int t, int t_inc, int Nx)
     return clip(v_min + (t - Nx)/t_inc, v_min, v_max) + D - Om;
 }
 
-int getMappedPredictionResidual(int s, int scale_s_pred, int s_min, int s_max) {
-    int s_pred = scale_s_pred / 2;
+uint16_t getMappedPredictionResidual(int s, int scale_s_pred, int s_min, int s_max) {
+    int s_pred = scale_s_pred >> 1;
     int residual = s - s_pred;
     int abs_residual = residual < 0 ? -residual : residual;
-    int teta_a = s_pred - s_min;
-    int teta_b = s_max - s_pred;
+    int teta_a = s - s_min;
+    int teta_b = s_max - s;
     int teta = teta_a < teta_b ? teta_a : teta_b;
-    int k = (scale_s_pred & 1) ? -residual : residual;
+    int k = (scale_s_pred & 1) == 0 ? residual : -residual;
 
     if(abs_residual > teta)
-        return abs_residual + teta;
+        return (uint16_t) (abs_residual + teta);
     if (0 <= k && k <= teta)
-        return abs_residual << 1;
-    return (abs_residual << 1) - 1;
+        return (uint16_t) (abs_residual << 1);
+    return (uint16_t) ((abs_residual << 1) - 1);
 }
 
 void updateW(int * W, int * U, int size, int e, int ro, int w_min, int w_max) {
@@ -136,41 +136,47 @@ void updateW(int * W, int * U, int size, int e, int ro, int w_min, int w_max) {
     }
 }
 
-void fun(int * in, int * out, ImageMetadata * imageMeta, PredictorMetadata * predMeta,
-         int s_min, int s_max, int s_mid) {
+void fun(uint16_t * in, uint16_t * out, ImageMetadata * imageMeta, PredictorMetadata * predMeta) {
 
-    int sizeX = imageMeta->sizeX;
-    int sizeY = imageMeta->sizeY;
-    int sizeZ = imageMeta->sizeZ;
-    int D = imageMeta->D;
-    int P = predMeta->P;
-    int R = predMeta->R;
-    int Om = predMeta->Om;
-    int v_min = predMeta->v_min;
-    int v_max = predMeta->v_max;
-    int t_inc = predMeta->t_inc;
+    int sizeX = imageMeta->xSize;
+    int sizeY = imageMeta->ySize;
+    int sizeZ = imageMeta->zSize;
+    int D = imageMeta->dynamicRange;
+    D = D == 0 ? 16 : D;
+
+    int P = predMeta->predictionBands;
+    int R = predMeta->registerSize;
+    int Om = predMeta->weightComponentResolution + 4;
+    int v_min = predMeta->wuScalingExpInitialParameter - 6;
+    int v_max = predMeta->wuScalingExpFinalParameter - 6;
+    int t_inc = 1 << (predMeta->wuScalingExpChangeInterval + 4);
     int w_min = -(1 << (Om + 2));
     int w_max = (1 << (Om + 2)) - 1;
+    uint16_t s_min = 0;
+    uint16_t s_max = (uint16_t)((1L << D) - 1);
+    uint16_t s_mid = (uint16_t)((1L << (D - 1)) - 1);
 
     int bandSize = sizeY * sizeX;
 
-    int * curBandIn = in;
-    int * curBandOut = out;
+    uint16_t * curBandIn = in;
+    uint16_t * curBandOut = out;
 
-    int * msU = (int *)malloc(sizeX * sizeY * P * sizeof(int));
-    int * msW = (int *)malloc(sizeX * sizeY * P * sizeof(int));
+    int uwSize = 3 + P;
+
+    int * msU = (int *)malloc(sizeX * sizeY * uwSize * sizeof(int));
+    int * msW = (int *)malloc(sizeX * sizeY * uwSize * sizeof(int));
 
     weightInitDefault(msW, Om, P);
+//    for (int i = 0; i < uwSize; i++) {
+//        msW[i] = 1;
+//    }
 
-    for(int i = P; i < bandSize; i += P)
-        memcpy(&msW[i], msW, (size_t)P * sizeof(int));
-
-    int * U = msU;
-    int * W = msW;
+    for(int i = 1; i < bandSize; i++)
+        memcpy(msW + uwSize * i, msW, (size_t)uwSize * sizeof(int));
 
     for(int z = 0; z < sizeZ; z++) {
-        int * curU = U + P;
-        int * curW = W + P;
+        int * curU = msU + uwSize;
+        int * curW = msW + uwSize;
         int scale_s_pred;
 
         if(P > 0 && z > 0)
@@ -179,19 +185,22 @@ void fun(int * in, int * out, ImageMetadata * imageMeta, PredictorMetadata * pre
             scale_s_pred = s_mid * 2;
 
         curBandOut[0] = getMappedPredictionResidual(curBandIn[0], scale_s_pred, s_min, s_max);
-
-        for(int y = 0, t = 1; y < sizeY; y++) {
-            for(int x = 1; x < sizeX; x++) {
+        int t = 1;
+        for(int y = 0; y < sizeY; y++) {
+            for(int x = (y == 0 ? 1 : 0); x < sizeX; x++) {
                 int local_sum = getLocalSum(curBandIn, sizeY, sizeX, y, x);
-                getU(U, P, in, sizeY, sizeX, z, y, x);
-                int d_pred = getPredictedD(U, W, P);
-                scale_s_pred = clip((mod_R(d_pred + ((local_sum - (s_mid << 2)) << Om), R) >> (Om - 1)) + 2 * s_mid + 1 , 2 * s_min, 2 * s_max + 1);
+                getU(curU, P, in, sizeY, sizeX, z, y, x);
+                int d_pred = getPredictedD(curU, curW, uwSize);
+                int a = d_pred + ((local_sum - ((int)s_mid << 2)) << Om);
+                int m = mod_R(a, R);
+                int val = m >> (Om + 1);
+                scale_s_pred = clip(val + 2 * s_mid + 1 , 2 * s_min, 2 * s_max + 1);
                 curBandOut[t] = getMappedPredictionResidual(curBandIn[t], scale_s_pred, s_min, s_max);
                 int e = 2 * curBandIn[t] - scale_s_pred;
                 int ro = getScalingExp(D, Om, v_min, v_max, t, t_inc, sizeX);
-                updateW(curW, curU, P, e, ro, w_min, w_max);
-                curU += P;
-                curW += P;
+                updateW(curW, curU, uwSize, e, ro, w_min, w_max);
+                curU += uwSize;
+                curW += uwSize;
                 t++;
             }
         }
@@ -232,17 +241,18 @@ unsigned getCodeWordSize(size_t counter, size_t accum) {
     return k - 1;
 }
 
-void encodeGolomb(uint32_t * in, uint32_t * out, size_t * outSize, ImageMetadata * imageMeta, EncoderMetadata * encoderMeta) {
+void encodeGolomb(uint16_t * in, uint32_t * out, size_t * outSize, ImageMetadata * imageMeta, EncoderMetadata * encoderMeta) {
 
-    uint32_t sizeX = imageMeta->sizeX;
-    uint32_t sizeY = imageMeta->sizeY;
-    uint32_t sizeZ = imageMeta->sizeZ;
-    int D = imageMeta->D;
+    uint32_t sizeX = imageMeta->xSize;
+    uint32_t sizeY = imageMeta->ySize;
+    uint32_t sizeZ = imageMeta->zSize;
+    int D = imageMeta->dynamicRange;
+    D = D == 0 ? 16 : D;
 
     uint32_t bandSize = sizeY * sizeX;
 
-    uint32_t * curBandIn =  (uint32_t *)in;
-    uint32_t * curBandOut = (uint32_t *)out;
+    uint16_t * curBandIn =  in;
+    uint32_t * curBandOut = out;
 
     unsigned U_max = encoderMeta->unaryLengthLimit;
     unsigned gamma_0 = encoderMeta->accumInitConstant;
@@ -294,20 +304,21 @@ void encodeGolomb(uint32_t * in, uint32_t * out, size_t * outSize, ImageMetadata
         curBandOut++;
     }
 
-    *outSize = (uint8_t *)curBandOut - (uint8_t *)out;
+    *outSize = curBandOut - out;
 }
 
-void decodeGolomb(void * in, void * out, ImageMetadata * imageMeta, EncoderMetadata * encoderMeta) {
+void decodeGolomb(uint32_t * in, uint16_t * out, ImageMetadata * imageMeta, EncoderMetadata * encoderMeta) {
 
-    uint32_t sizeX = imageMeta->sizeX;
-    uint32_t sizeY = imageMeta->sizeY;
-    uint32_t sizeZ = imageMeta->sizeZ;
-    int D = imageMeta->D;
+    uint32_t sizeX = imageMeta->xSize;
+    uint32_t sizeY = imageMeta->ySize;
+    uint32_t sizeZ = imageMeta->zSize;
+    int D = imageMeta->dynamicRange;
+    D = D == 0 ? 16 : D;
 
     uint32_t bandSize = sizeY * sizeX;
 
-    uint32_t * curBandIn =  (uint32_t *)in;
-    uint16_t * curBandOut = (uint16_t *)out;
+    uint32_t * curBandIn =  in;
+    uint16_t * curBandOut = out;
 
     unsigned U_max = encoderMeta->unaryLengthLimit;
     unsigned gamma_0 = encoderMeta->accumInitConstant;
