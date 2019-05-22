@@ -78,6 +78,14 @@ void getU(int * U, int P, uint16_t * image, int sizeY, int sizeX, int z, int y, 
     U[1] =  dW(currentBand, sizeY, sizeX, y, x);
     U[2] = dNW(currentBand, sizeY, sizeX, y, x);
 
+    if(z == 0) {
+        int val = 0;
+        for(int i = 1; i <= P; i++) {
+            U[i + 2] = val;
+        }
+        return;
+    }
+
     for(int i = 1; i <= P; i++) {
         int stepsDown = z - i > 0 ? i : z;
         U[i + 2] = d(currentBand - bandSize * stepsDown, sizeY, sizeX, y, x);
@@ -110,8 +118,8 @@ uint16_t getMappedPredictionResidual(int s, int scale_s_pred, int s_min, int s_m
     int s_pred = scale_s_pred >> 1;
     int residual = s - s_pred;
     int abs_residual = residual < 0 ? -residual : residual;
-    int teta_a = s - s_min;
-    int teta_b = s_max - s;
+    int teta_a = s_pred - s_min;
+    int teta_b = s_max - s_pred;
     int teta = teta_a < teta_b ? teta_a : teta_b;
     int k = (scale_s_pred & 1) == 0 ? residual : -residual;
 
@@ -120,6 +128,23 @@ uint16_t getMappedPredictionResidual(int s, int scale_s_pred, int s_min, int s_m
     if (0 <= k && k <= teta)
         return (uint16_t) (abs_residual << 1);
     return (uint16_t) ((abs_residual << 1) - 1);
+}
+
+uint16_t getRestoredValue(int mappedResidual, int scale_s_pred, int s_min, int s_max, int s_mid) {
+    int s_pred = scale_s_pred >> 1;
+    int residual;
+    int teta_a = s_pred - s_min;
+    int teta_b = s_max - s_pred;
+    int teta = teta_a < teta_b ? teta_a : teta_b;
+    int k = ((scale_s_pred + mappedResidual) & 1) == 0 ? 1 : -1;
+
+    if(mappedResidual > teta * 2) {
+        residual =(teta - mappedResidual) * sgn_plus(s_pred - s_mid);
+    } else {
+        residual =((mappedResidual + 1) >> 1) * k;
+    }
+
+    return (uint16_t) (residual + s_pred);
 }
 
 void updateW(int * W, int * U, int size, int e, int ro, int w_min, int w_max) {
@@ -136,7 +161,7 @@ void updateW(int * W, int * U, int size, int e, int ro, int w_min, int w_max) {
     }
 }
 
-void fun(uint16_t * in, uint16_t * out, ImageMetadata * imageMeta, PredictorMetadata * predMeta) {
+void runPredictor(uint16_t * in, uint16_t * out, ImageMetadata * imageMeta, PredictorMetadata * predMeta, int opType) {
 
     int sizeX = imageMeta->xSize;
     int sizeY = imageMeta->ySize;
@@ -160,6 +185,8 @@ void fun(uint16_t * in, uint16_t * out, ImageMetadata * imageMeta, PredictorMeta
 
     uint16_t * curBandIn = in;
     uint16_t * curBandOut = out;
+    uint16_t * predBase = (opType == PREDICTOR_MAP) ? in : out;
+    uint16_t * curPredBase = predBase;
 
     int uwSize = 3 + P;
 
@@ -167,9 +194,6 @@ void fun(uint16_t * in, uint16_t * out, ImageMetadata * imageMeta, PredictorMeta
     int * msW = (int *)malloc(sizeX * sizeY * uwSize * sizeof(int));
 
     weightInitDefault(msW, Om, P);
-//    for (int i = 0; i < uwSize; i++) {
-//        msW[i] = 1;
-//    }
 
     for(int i = 1; i < bandSize; i++)
         memcpy(msW + uwSize * i, msW, (size_t)uwSize * sizeof(int));
@@ -180,23 +204,30 @@ void fun(uint16_t * in, uint16_t * out, ImageMetadata * imageMeta, PredictorMeta
         int scale_s_pred;
 
         if(P > 0 && z > 0)
-            scale_s_pred = *(curBandIn - bandSize) * 2;
+            scale_s_pred = *(curPredBase - bandSize) * 2;
         else
             scale_s_pred = s_mid * 2;
 
-        curBandOut[0] = getMappedPredictionResidual(curBandIn[0], scale_s_pred, s_min, s_max);
+        if(opType == PREDICTOR_MAP)
+            curBandOut[0] = getMappedPredictionResidual(curBandIn[0], scale_s_pred, s_min, s_max);
+        else
+            curBandOut[0] = getRestoredValue(curBandIn[0], scale_s_pred, s_min, s_max, s_mid);
+
         int t = 1;
         for(int y = 0; y < sizeY; y++) {
             for(int x = (y == 0 ? 1 : 0); x < sizeX; x++) {
-                int local_sum = getLocalSum(curBandIn, sizeY, sizeX, y, x);
-                getU(curU, P, in, sizeY, sizeX, z, y, x);
+                int local_sum = getLocalSum(curPredBase, sizeY, sizeX, y, x);
+                getU(curU, P, predBase, sizeY, sizeX, z, y, x);
                 int d_pred = getPredictedD(curU, curW, uwSize);
                 int a = d_pred + ((local_sum - ((int)s_mid << 2)) << Om);
                 int m = mod_R(a, R);
                 int val = m >> (Om + 1);
                 scale_s_pred = clip(val + 2 * s_mid + 1 , 2 * s_min, 2 * s_max + 1);
-                curBandOut[t] = getMappedPredictionResidual(curBandIn[t], scale_s_pred, s_min, s_max);
-                int e = 2 * curBandIn[t] - scale_s_pred;
+                if(opType == PREDICTOR_MAP)
+                    curBandOut[t] = getMappedPredictionResidual(curBandIn[t], scale_s_pred, s_min, s_max);
+                else
+                    curBandOut[t] = getRestoredValue(curBandIn[t], scale_s_pred, s_min, s_max, s_mid);
+                int e = 2 * curPredBase[t] - scale_s_pred;
                 int ro = getScalingExp(D, Om, v_min, v_max, t, t_inc, sizeX);
                 updateW(curW, curU, uwSize, e, ro, w_min, w_max);
                 curU += uwSize;
@@ -206,6 +237,7 @@ void fun(uint16_t * in, uint16_t * out, ImageMetadata * imageMeta, PredictorMeta
         }
         curBandIn  += bandSize;
         curBandOut += bandSize;
+        curPredBase += bandSize;
     }
 
     if(msU)
@@ -392,3 +424,78 @@ void decodeGolomb(uint32_t * in, uint16_t * out, ImageMetadata * imageMeta, Enco
     }
 }
 
+void swopBytes(uint16_t * p, size_t size) {
+    for(size_t i = 0; i < size; i++) {
+        uint16_t tmp = p[i] >> 8;
+        p[i] = (uint16_t)((p[i] << 8) + tmp);
+    }
+}
+
+int loadFromPGM(char *fileName, uint16_t *data[], unsigned * sizeX, unsigned * sizeY, unsigned * maxValue) {
+    FILE * fp;
+    char buffer[1024];
+
+    fp = fopen(fileName, "rb");
+    if(!fp)
+        return -1;
+
+    fscanf(fp, "%s", buffer);
+    if(strcmp(buffer, "P5"))
+        return -1;
+    if(fscanf(fp, "%u%u%u", sizeX, sizeY, maxValue) != 3)
+        return -1;
+
+    size_t size = *sizeX * *sizeY;
+    int bitsPerChannel = int(log(*maxValue + 1.0) / log(2.0));
+
+    if(!(8 < bitsPerChannel && bitsPerChannel <= 16))
+        return -1;
+
+    int ch = fgetc(fp);
+    while(ch != '\n')
+        ch = fgetc(fp);
+
+    *data = (uint16_t *)malloc(size * sizeof (uint16_t));
+    if(!(*data))
+        return -1;
+
+    if(fread(*data, sizeof(uint16_t), size, fp) != size) {
+        free(*data);
+        return -1;
+    }
+    fclose(fp);
+
+    swopBytes(*data, size);
+
+    return 0;
+}
+
+int saveToPGM(char *fileName, uint16_t data[], unsigned sizeX, unsigned sizeY, unsigned maxValue)
+{
+    FILE * fp;
+    fp = fopen(fileName, "wb");
+    if(!fp)
+        return -1;
+
+    fprintf(fp, "P5\n%u %u\n%u\n", sizeX, sizeY, maxValue);
+
+    size_t size = sizeX * sizeY;
+
+    uint16_t * p = (uint16_t *)malloc(size * sizeof(uint16_t));
+    if(!p)
+        return -1;
+    memcpy(p, data, size * sizeof(uint16_t));
+    swopBytes(p, size);
+
+    if(fwrite(p, sizeof(uint16_t), size, fp) != size) {
+        if(p)
+            free(p);
+        return -1;
+    }
+
+    if(p)
+        free(p);
+    fclose(fp);
+
+    return 0;
+}

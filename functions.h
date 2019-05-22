@@ -45,6 +45,11 @@ struct EncoderMetadata {
     unsigned accumInitTableFlag : 1;
 };
 
+enum {
+    PREDICTOR_MAP,
+    PREDICTOR_RESTORE
+};
+
 int getLocalSum(uint16_t * currentBand, int sizeY, int sizeX, int y, int x);
 int clip(int val, int val_min, int val_max);
 int sgn_plus(int val);
@@ -58,12 +63,16 @@ void weightInitDefault(int * W, int om, int P);
 int getPredictedD(int * U, int * W, int size);
 int getScalingExp(int D, int Om, int v_min, int v_max, int t, int t_inc, int Nx);
 uint16_t getMappedPredictionResidual(int s, int scale_s_pred, int s_min, int s_max);
+uint16_t getRestoredValue(int mappedResidual, int scale_s_pred, int s_min, int s_max, int s_mid);
 void updateW(int * W, int * U, int size, int e, int ro, int w_min, int w_max);
-void fun(uint16_t *in, uint16_t *out, ImageMetadata * imageMeta, PredictorMetadata * predMeta);
+void runPredictor(uint16_t *in, uint16_t *out, ImageMetadata * imageMeta, PredictorMetadata * predMeta, int opType);
 size_t getAccum(size_t prevAccum, size_t prevCounter, uint32_t prevResidual, uint32_t gamma);
 size_t getCounter(size_t prevCounter, unsigned gamma);
 unsigned getCodeWordSize(size_t counter, size_t accum);
 void encodeGolomb(uint16_t * in, uint32_t * out, size_t * outSize, ImageMetadata * imageMeta, EncoderMetadata * encoderMeta);
 void decodeGolomb(uint32_t * in, uint16_t * out, ImageMetadata * imageMeta, EncoderMetadata * encoderMeta);
+int loadFromPGM(char *fileName, uint16_t *data[], unsigned * sizeX, unsigned * sizeY, unsigned * maxValue);
+int saveToPGM(char *fileName, uint16_t data[], unsigned sizeX, unsigned sizeY, unsigned maxValue);
+void swopBytes(uint16_t * p, size_t size);
 
 #endif // FUNCTIONS_H

@@ -41,7 +41,7 @@ TEST_CASE("sgn_plus", "[sgn_plus]") {
 }
 
 TEST_CASE("mod_R", "[mod_R]") {
-    REQUIRE( mod_R(5, 32) == 5  );
+    REQUIRE( mod_R(5, 32) ==   5);
     REQUIRE( mod_R(10, 5) ==  10);
     REQUIRE( mod_R(20, 5) == -12);
     REQUIRE( mod_R(16, 5) == -16);
@@ -134,10 +134,13 @@ TEST_CASE("getU", "[getU]") {
     };
     int sizeX = 5;
     int sizeY = 3;
+    int z = 3;
+    int y = 1;
+    int x = 1;
     int P = 3;
     int U[10];
 
-    getU(U, P, ms[0], sizeY, sizeX, 3, 1, 1);
+    getU(U, P, ms[0], sizeY, sizeX, z, y, x);
     int U_1[6] = {-7, 5, 5, -15, 11, -4};
 
     for(int i = 0; i < 6; i++) {
@@ -145,12 +148,30 @@ TEST_CASE("getU", "[getU]") {
         CHECK(U[i] == U_1[i]);
     }
 
-    getU(U, P, ms[0], sizeY, sizeX, 1, 1, 1);
+    z = 1;
+    y = 1;
+    x = 1;
+    P = 3;
+
+    getU(U, P, ms[0], sizeY, sizeX, z, y, x);
     int U_2[6] = {15, -5, -5, -4, -4, -4};
 
     for(int i = 0; i < 6; i++) {
         INFO("Index: " << i);
         CHECK(U[i] == U_2[i]);
+    }
+
+    z = 0;
+    y = 0;
+    x = 1;
+    P = 2;
+
+    getU(U, P, ms[0], sizeY, sizeX, z, y, x);
+    int U_3[5] = {0, 0, 0, 0, 0};
+
+    for(int i = 0; i < 5; i++) {
+        INFO("Index: " << i);
+        CHECK(U[i] == U_3[i]);
     }
 }
 
@@ -188,15 +209,27 @@ TEST_CASE("getPredictedD") {
 }
 
 TEST_CASE("getMappedPredictionResidual") {
-    CHECK(getMappedPredictionResidual( 5,  12, 0, 32) == 1);
-    CHECK(getMappedPredictionResidual( 9,  17, 0, 32) == 1);
-    CHECK(getMappedPredictionResidual( 9,  20, 0, 32) == 1);
-    CHECK(getMappedPredictionResidual( 8,   3, 0, 32) == 13);
-    CHECK(getMappedPredictionResidual( 4,   0, 0, 32) == 8);
-    CHECK(getMappedPredictionResidual( 13,  3, 0, 32) == 23);
-    CHECK(getMappedPredictionResidual( 7,   0, 0, 32) == 14);
-    CHECK(getMappedPredictionResidual( 6,   2, 0, 32) == 10);
-    CHECK(getMappedPredictionResidual( 5,   5, 0, 32) == 5);
+    CHECK(getMappedPredictionResidual( 9,   8, 0, 63) == 9);
+    CHECK(getMappedPredictionResidual( 9,  17, 0, 63) == 1);
+    CHECK(getMappedPredictionResidual( 9,  22, 0, 63) == 3);
+    CHECK(getMappedPredictionResidual( 8,   3, 0, 63) == 8);
+    CHECK(getMappedPredictionResidual( 4,   0, 0, 63) == 4);
+    CHECK(getMappedPredictionResidual( 13,  5, 0, 63) == 13);
+    CHECK(getMappedPredictionResidual( 8,  31, 0, 63) == 14);
+    CHECK(getMappedPredictionResidual( 7,  10, 0, 63) == 4);
+    CHECK(getMappedPredictionResidual(11,  40, 0, 63) == 17);
+}
+
+TEST_CASE("getRestoredValue") {
+    CHECK(getRestoredValue( 9,  8, 0, 63, 32) == 9);
+    CHECK(getRestoredValue( 1, 17, 0, 63, 32) == 9);
+    CHECK(getRestoredValue( 3, 22, 0, 63, 32) == 9);
+    CHECK(getRestoredValue( 4,  0, 0, 63, 32) == 4);
+    CHECK(getRestoredValue( 5,  5, 0, 63, 32) == 5);
+    CHECK(getRestoredValue( 4, 10, 0, 63, 32) == 7);
+    CHECK(getRestoredValue(17, 40, 0, 63, 32) == 11);
+    CHECK(getRestoredValue(13,  5, 0, 63, 32) == 13);
+    CHECK(getRestoredValue(14, 31, 0, 63, 32) == 8);
 }
 
 TEST_CASE("updateW") {
@@ -253,7 +286,7 @@ TEST_CASE("updateW") {
     }
 }
 
-TEST_CASE("fun") {
+TEST_CASE("runPredictor") {
     uint16_t input[12 * 4 * 5] = {
         100, 	101, 	100, 	100, 	101,
         100, 	102, 	101, 	101, 	101,
@@ -316,7 +349,8 @@ TEST_CASE("fun") {
         101, 	100, 	100, 	100, 	100
     };
 
-    uint16_t output[12 * 4 * 5] = {0};
+    uint16_t mappedResiduals[12 * 4 * 5] = {0};
+    uint16_t restoredData[12 * 4 * 5] = {0};
 
     ImageMetadata imageMeta;
     imageMeta.dynamicRange = 0;
@@ -337,7 +371,16 @@ TEST_CASE("fun") {
     predMeta.weightInitTableFlag = 0;
     predMeta.weightInitResolution = 0;
 
-    fun(input, output, &imageMeta, &predMeta);
+    runPredictor(input, mappedResiduals, &imageMeta, &predMeta, PREDICTOR_MAP);
+    runPredictor(mappedResiduals, restoredData, &imageMeta, &predMeta, PREDICTOR_RESTORE);
+
+    int size = 12 * 4 * 5;
+
+    for(int i = 0; i < size; i++) {
+        INFO("Index: " << i);
+        CHECK(input[i] == restoredData[i]);
+    }
+
 }
 
 TEST_CASE("getCodeWordSize") {
@@ -393,4 +436,37 @@ TEST_CASE("Golomb") {
         CHECK(input[i] == decodedOut[i]);
     }
 
+}
+
+TEST_CASE("save/load PGM") {
+
+    uint16_t data[6 * 7] = {
+        215, 	2447, 	3842, 	1083, 	119, 	672, 	1782,
+        2406, 	3397, 	2431, 	2823, 	1154, 	1462, 	3492,
+        898, 	2892, 	1144, 	2849, 	2422, 	3584, 	1153,
+        1287, 	1389, 	1479, 	3597, 	2460, 	2089, 	2111,
+        589, 	2685, 	140, 	3056, 	1198, 	2115, 	656,
+        2311, 	2867, 	1166, 	386, 	1462, 	2163, 	3300
+    };
+    uint16_t * loadadData = NULL;
+
+    char fileName[] = "test.pgm";
+    unsigned sizeX = 7;
+    unsigned sizeY = 6;
+    unsigned maxValue = 4095;
+    unsigned loadedSizeX;
+    unsigned loadedSizeY;
+    unsigned loadedMaxValue;
+
+    CHECK(saveToPGM(fileName, data, sizeX, sizeY, maxValue) == 0);
+    CHECK(loadFromPGM(fileName, &loadadData, &loadedSizeX, &loadedSizeY, &loadedMaxValue) == 0);
+
+    if(loadadData) {
+        int size = sizeX * sizeY;
+        for(int i = 0; i < size; i++) {
+            INFO("Index: " << i);
+            CHECK(data[i] == loadadData[i]);
+        }
+        free(loadadData);
+    }
 }
