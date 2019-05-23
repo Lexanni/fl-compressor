@@ -336,7 +336,7 @@ void encodeGolomb(uint16_t * in, uint32_t * out, size_t * outSize, ImageMetadata
         curBandOut++;
     }
 
-    *outSize = curBandOut - out;
+    *outSize = (curBandOut - out) * sizeof (uint32_t);
 }
 
 void decodeGolomb(uint32_t * in, uint16_t * out, ImageMetadata * imageMeta, EncoderMetadata * encoderMeta) {
@@ -476,20 +476,22 @@ int saveToPGM(char *fileName, uint16_t data[], unsigned sizeX, unsigned sizeY, u
     fp = fopen(fileName, "wb");
     if(!fp)
         return -1;
-
     fprintf(fp, "P5\n%u %u\n%u\n", sizeX, sizeY, maxValue);
 
     size_t size = sizeX * sizeY;
 
     uint16_t * p = (uint16_t *)malloc(size * sizeof(uint16_t));
-    if(!p)
+    if(!p) {
+        fclose(fp);
         return -1;
+    }
     memcpy(p, data, size * sizeof(uint16_t));
     swopBytes(p, size);
 
     if(fwrite(p, sizeof(uint16_t), size, fp) != size) {
         if(p)
             free(p);
+        fclose(fp);
         return -1;
     }
 
@@ -498,4 +500,83 @@ int saveToPGM(char *fileName, uint16_t data[], unsigned sizeX, unsigned sizeY, u
     fclose(fp);
 
     return 0;
+}
+
+int saveCompressedImage(char * fileName, void * data, size_t dataSize,
+                        ImageMetadata * imageMeta, PredictorMetadata * predMeta, EncoderMetadata * encoderMeta) {
+
+    FILE * fp;
+    fp = fopen(fileName, "wb");
+    if(!fp)
+        return -1;
+
+    size_t i_size = sizeof (ImageMetadata);
+    size_t p_size = sizeof (PredictorMetadata);
+    size_t e_size = sizeof (EncoderMetadata);
+
+    size_t total = 0;
+
+    total += fwrite(imageMeta  , i_size  , 1, fp);
+    total += fwrite(predMeta   , p_size  , 1, fp);
+    total += fwrite(encoderMeta, e_size  , 1, fp);
+    total += fwrite(data       , dataSize, 1, fp);
+
+    fclose(fp);
+
+    if(total != 4)
+        return -1;
+
+    return 0;
+}
+
+int loadCompressedImage(char * fileName, void ** data, size_t * dataSize,
+                        ImageMetadata * imageMeta, PredictorMetadata * predMeta, EncoderMetadata * encoderMeta) {
+
+    FILE * fp;
+    fp = fopen(fileName, "rb");
+    if(!fp)
+        return -1;
+
+    size_t i_size = sizeof (ImageMetadata);
+    size_t p_size = sizeof (PredictorMetadata);
+    size_t e_size = sizeof (EncoderMetadata);
+
+    size_t headerSize = i_size + p_size + e_size;
+
+    size_t total = 0;
+
+    total += fread(imageMeta  , i_size, 1, fp);
+    total += fread(predMeta   , p_size, 1, fp);
+    total += fread(encoderMeta, e_size, 1, fp);
+
+    if(total != 3) {
+        fclose(fp);
+        return -1;
+    }
+
+    fseek(fp, 0L, SEEK_END);
+    *dataSize = (size_t)ftell(fp) - headerSize;
+    fseek(fp, (long)headerSize, SEEK_SET);
+
+    *data = malloc(*dataSize);
+    if(!(*data)) {
+        fclose(fp);
+        return -1;
+    }
+
+    total += fread(*data, *dataSize, 1, fp);
+    fclose(fp);
+
+    if(total != 4)
+    {
+        free(*data);
+        return -1;
+    }
+
+    return 0;
+}
+
+void printUsage()
+{
+    printf("HELP INFO\n");
 }

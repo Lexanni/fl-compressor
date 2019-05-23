@@ -4,6 +4,7 @@ CONFIG -= app_bundle
 CONFIG -= qt
 
 DEFINES += _CRT_SECURE_NO_WARNINGS
+# DEFINES += UNIT_TESTS
 
 SOURCES += \
         main.cpp \

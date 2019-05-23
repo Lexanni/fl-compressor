@@ -1,3 +1,5 @@
+#ifdef UNIT_TESTS
+
 #include "catch.hpp"
 #include "functions.h"
 
@@ -448,7 +450,7 @@ TEST_CASE("save/load PGM") {
         589, 	2685, 	140, 	3056, 	1198, 	2115, 	656,
         2311, 	2867, 	1166, 	386, 	1462, 	2163, 	3300
     };
-    uint16_t * loadadData = NULL;
+    uint16_t * loadedData = NULL;
 
     char fileName[] = "test.pgm";
     unsigned sizeX = 7;
@@ -459,14 +461,98 @@ TEST_CASE("save/load PGM") {
     unsigned loadedMaxValue;
 
     CHECK(saveToPGM(fileName, data, sizeX, sizeY, maxValue) == 0);
-    CHECK(loadFromPGM(fileName, &loadadData, &loadedSizeX, &loadedSizeY, &loadedMaxValue) == 0);
+    CHECK(loadFromPGM(fileName, &loadedData, &loadedSizeX, &loadedSizeY, &loadedMaxValue) == 0);
 
-    if(loadadData) {
+    if(loadedData) {
         int size = sizeX * sizeY;
         for(int i = 0; i < size; i++) {
             INFO("Index: " << i);
-            CHECK(data[i] == loadadData[i]);
+            CHECK(data[i] == loadedData[i]);
         }
-        free(loadadData);
+        free(loadedData);
     }
 }
+
+TEST_CASE("save/load compressed image") {
+
+    char fileName[] = "test_compressed.fl";
+    uint32_t data[6 * 5] = {
+        581612148,      840150402,      170625740,      1768229585, 	4127652133,
+        2166189274, 	921143472,      2829598208, 	4086598280, 	1337180266,
+        2599861949, 	1672172116, 	855853699,      2135216968, 	3721482342,
+        2363560580, 	1555567274, 	3700090308, 	974886365,      3518892602,
+        2865892643, 	3278841227, 	1314848842, 	2703874718, 	229157794,
+        4130334434, 	119450082,      794094992,      756900839,      635552470
+    };
+    uint32_t * loadedData = NULL;
+    ImageMetadata l_imageMeta;
+    PredictorMetadata l_predMeta;
+    EncoderMetadata l_encoderMeta;
+
+    size_t size = 6 * 5;
+    size_t dataSize = size * sizeof (uint32_t);
+    size_t loadDadaSize = 0;
+
+    ImageMetadata imageMeta;
+    imageMeta.userData     = 127; // :  8;
+    imageMeta.xSize        = 500; // : 16;
+    imageMeta.ySize        = 800; // : 16;
+    imageMeta.zSize        = 200; // : 16;
+    imageMeta.sampleType   = 0;   // : 1;
+    imageMeta.reserved_0   = 3;   // : 2;
+    imageMeta.dynamicRange = 8;   // : 4;
+    imageMeta.sampleEncodingOrder       = 0;     //  : 1;
+    imageMeta.subFrameInterleavingDepth = 12000; // : 16;
+    imageMeta.reserved_1       = 2; // : 2;
+    imageMeta.outputWordSize   = 5; // : 3;
+    imageMeta.entropyCoderType = 0; // : 1;
+    imageMeta.reserved_2       = 0; // : 10;
+
+    PredictorMetadata predMeta;
+    predMeta.reserved_0      = 3; // : 2;
+    predMeta.predictionBands = 5; // : 4;
+    predMeta.predictionMode  = 0; // : 1;
+    predMeta.reserved_1      = 1; // : 1;
+    predMeta.localSumType    = 0; // : 1;
+    predMeta.reserved_2      = 0; // : 1;
+    predMeta.registerSize    = 3; // : 6;
+    predMeta.weightComponentResolution    = 10; // : 4;
+    predMeta.wuScalingExpChangeInterval   = 6;  // : 4;
+    predMeta.wuScalingExpInitialParameter = 0;  // : 4;
+    predMeta.wuScalingExpFinalParameter   = 12; // : 4;
+    predMeta.reserved_3           = 0;  // : 1;
+    predMeta.weightInitMethod     = 0;  // : 1;
+    predMeta.weightInitTableFlag  = 0;  // : 1;
+    predMeta.weightInitResolution = 20; // : 5;
+
+    EncoderMetadata encoderMeta;
+    encoderMeta.unaryLengthLimit     = 7;  // : 5;
+    encoderMeta.rescalingCounterSize = 2;  // : 3;
+    encoderMeta.initialCountExponent = 6;  // : 3;
+    encoderMeta.accumInitConstant    = 11; // : 4;
+    encoderMeta.accumInitTableFlag   = 0;  // : 1;
+
+    CHECK(saveCompressedImage(fileName, data, dataSize, &imageMeta, &predMeta, &encoderMeta) == 0);
+
+    memset(&l_imageMeta, 0, sizeof (ImageMetadata));
+    memset(&l_predMeta,  0, sizeof (PredictorMetadata));
+    memset(&l_encoderMeta, 0, sizeof (EncoderMetadata));
+
+    CHECK(loadCompressedImage(fileName, (void **)&loadedData, &loadDadaSize,
+                              &l_imageMeta, &l_predMeta, &l_encoderMeta) == 0);
+
+    CHECK(memcmp(&imageMeta, &l_imageMeta, sizeof (ImageMetadata)) == 0);
+    CHECK(memcmp(&predMeta,  &l_predMeta, sizeof (PredictorMetadata)) == 0);
+    CHECK(memcmp(&encoderMeta, &l_encoderMeta, sizeof (EncoderMetadata)) == 0);
+
+    if(loadedData) {
+        for(int i = 0; i < size; i++) {
+            INFO("Index: " << i);
+            CHECK(data[i] == loadedData[i]);
+        }
+        free(loadedData);
+    }
+
+}
+
+#endif // UNIT_TESTS

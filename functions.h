@@ -74,5 +74,10 @@ void decodeGolomb(uint32_t * in, uint16_t * out, ImageMetadata * imageMeta, Enco
 int loadFromPGM(char *fileName, uint16_t *data[], unsigned * sizeX, unsigned * sizeY, unsigned * maxValue);
 int saveToPGM(char *fileName, uint16_t data[], unsigned sizeX, unsigned sizeY, unsigned maxValue);
 void swopBytes(uint16_t * p, size_t size);
+int loadCompressedImage(char * fileName, void ** data, size_t * dataSize,
+                        ImageMetadata * imageMeta, PredictorMetadata * predMeta, EncoderMetadata * encoderMeta);
+int saveCompressedImage(char * fileName, void * data, size_t dataSize,
+                        ImageMetadata * imageMeta, PredictorMetadata * predMeta, EncoderMetadata * encoderMeta);
+void printUsage();
 
 #endif // FUNCTIONS_H
