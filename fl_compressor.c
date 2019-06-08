@@ -1,32 +1,32 @@
-#include "functions.h"
+#include "fl_compressor.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
 #include <string.h>
 
-int getLocalSum(uint16_t * currentBand, int sizeY, int sizeX, int y, int x) {
+int getLocalSum(uint16_t * band, int sizeY, int sizeX, int y, int x) {
     int sNW, sN, sNE, sW;
     if (sizeX <= 0 || sizeY <= 0)
         return -1;
     if (y > 0 && y < sizeY) {
         if (x > 0 && x < sizeX - 1) {
-            sNW = currentBand[sizeX * (y - 1) + (x - 1)];
-            sN  = currentBand[sizeX * (y - 1) +    x   ];
-            sNE = currentBand[sizeX * (y - 1) + (x + 1)];
-            sW  = currentBand[sizeX *    y    + (x - 1)];
+            sNW = band[sizeX * (y - 1) + (x - 1)];
+            sN  = band[sizeX * (y - 1) +    x   ];
+            sNE = band[sizeX * (y - 1) + (x + 1)];
+            sW  = band[sizeX *    y    + (x - 1)];
             return sNW + sN + sNE + sW;
         } else if (x == 0) {
-            sN  = currentBand[sizeX * (y - 1) +    x   ];
-            sNE = currentBand[sizeX * (y - 1) + (x + 1)];
+            sN  = band[sizeX * (y - 1) +    x   ];
+            sNE = band[sizeX * (y - 1) + (x + 1)];
             return (sN + sNE) << 1;
         } else if (x == sizeX - 1) {
-            sNW = currentBand[sizeX * (y - 1) + (x - 1)];
-            sN  = currentBand[sizeX * (y - 1) +    x   ];
-            sW  = currentBand[sizeX *    y    + (x - 1)];
+            sNW = band[sizeX * (y - 1) + (x - 1)];
+            sN  = band[sizeX * (y - 1) +    x   ];
+            sW  = band[sizeX *    y    + (x - 1)];
             return sW + sNW + (sN << 1);
         }
     } else if ( y == 0 && x > 0 && x < sizeX) {
-        return currentBand[x - 1] << 2;
+        return band[x - 1] << 2;
     }
     return -1;
 }
@@ -44,39 +44,41 @@ int mod_R(int x, int R) {
     return ((x + (1ll << (R - 1ll))) % (1ll << R)) - (1ll << (R - 1));
 }
 
-int d(uint16_t * currentBand, int sizeY, int sizeX, int y, int x) {
-    return (currentBand[sizeX * y + x] << 2) - getLocalSum(currentBand, sizeY, sizeX, y, x);
+int d(uint16_t * currentBand, int sizeY, int sizeX, int y, int x, int localSum) {
+    return (currentBand[sizeX * y + x] << 2) - localSum;
 }
 
-int dN(uint16_t * currentBand, int sizeY, int sizeX, int y, int x) {
+int dN(uint16_t * currentBand, int sizeY, int sizeX, int y, int x, int localSum) {
     if(y == 0)
         return 0;
-    return (currentBand[sizeX * (y - 1) + x] << 2) - getLocalSum(currentBand, sizeY, sizeX, y, x);
+    return (currentBand[sizeX * (y - 1) + x] << 2) - localSum;
 }
 
-int dW(uint16_t * currentBand, int sizeY, int sizeX, int y, int x) {
-    if(y == 0)
-        return 0;
-    if(x == 0)
-        return (currentBand[sizeX * (y - 1) + x] << 2) - getLocalSum(currentBand, sizeY, sizeX, y, x);
-    return (currentBand[sizeX * y + (x - 1)] << 2) - getLocalSum(currentBand, sizeY, sizeX, y, x);
-}
-
-int dNW(uint16_t * currentBand, int sizeY, int sizeX, int y, int x) {
+int dW(uint16_t * currentBand, int sizeY, int sizeX, int y, int x, int localSum) {
     if(y == 0)
         return 0;
     if(x == 0)
-        return (currentBand[sizeX * (y - 1) + x] << 2) - getLocalSum(currentBand, sizeY, sizeX, y, x);
-    return (currentBand[sizeX * (y - 1) + (x - 1)] << 2) - getLocalSum(currentBand, sizeY, sizeX, y, x);
+        return (currentBand[sizeX * (y - 1) + x] << 2) - localSum;
+    return (currentBand[sizeX * y + (x - 1)] << 2) - localSum;
+}
+
+int dNW(uint16_t * currentBand, int sizeY, int sizeX, int y, int x, int localSum) {
+    if(y == 0)
+        return 0;
+    if(x == 0)
+        return (currentBand[sizeX * (y - 1) + x] << 2) - localSum;
+    return (currentBand[sizeX * (y - 1) + (x - 1)] << 2) - localSum;
 }
 
 void getU(int * U, int P, uint16_t * image, int sizeY, int sizeX, int z, int y, int x) {
     int bandSize = sizeY * sizeX;
-    uint16_t * currentBand = image + bandSize * z;
+    uint16_t * band = image + bandSize * z;
 
-    U[0] =  dN(currentBand, sizeY, sizeX, y, x);
-    U[1] =  dW(currentBand, sizeY, sizeX, y, x);
-    U[2] = dNW(currentBand, sizeY, sizeX, y, x);
+    int localSum = getLocalSum(band, sizeY, sizeX, y, x);
+
+    U[0] =  dN(band, sizeY, sizeX, y, x, localSum);
+    U[1] =  dW(band, sizeY, sizeX, y, x, localSum);
+    U[2] = dNW(band, sizeY, sizeX, y, x, localSum);
 
     if(z == 0) {
         int val = 0;
@@ -88,7 +90,9 @@ void getU(int * U, int P, uint16_t * image, int sizeY, int sizeX, int z, int y, 
 
     for(int i = 1; i <= P; i++) {
         int stepsDown = z - i > 0 ? i : z;
-        U[i + 2] = d(currentBand - bandSize * stepsDown, sizeY, sizeX, y, x);
+        uint16_t * downBand = band - bandSize * stepsDown;
+        // localSum = getLocalSum(downBand, sizeY, sizeX, y, x);
+        U[i + 2] = d(downBand, sizeY, sizeX, y, x, localSum);
     }
 }
 
@@ -130,18 +134,18 @@ uint16_t getMappedPredictionResidual(int s, int scale_s_pred, int s_min, int s_m
     return (uint16_t) ((abs_residual << 1) - 1);
 }
 
-uint16_t getRestoredValue(int mappedResidual, int scale_s_pred, int s_min, int s_max, int s_mid) {
+uint16_t getRestoredValue(int mapped_residual, int scale_s_pred, int s_min, int s_max, int s_mid) {
     int s_pred = scale_s_pred >> 1;
     int residual;
     int teta_a = s_pred - s_min;
     int teta_b = s_max - s_pred;
     int teta = teta_a < teta_b ? teta_a : teta_b;
-    int k = ((scale_s_pred + mappedResidual) & 1) == 0 ? 1 : -1;
+    int k = ((scale_s_pred + mapped_residual) & 1) == 0 ? 1 : -1;
 
-    if(mappedResidual > teta * 2) {
-        residual =(teta - mappedResidual) * sgn_plus(s_pred - s_mid);
+    if(mapped_residual > teta * 2) {
+        residual =(teta - mapped_residual) * sgn_plus(s_pred - s_mid);
     } else {
-        residual =((mappedResidual + 1) >> 1) * k;
+        residual =((mapped_residual + 1) >> 1) * k;
     }
 
     return (uint16_t) (residual + s_pred);
@@ -161,7 +165,8 @@ void updateW(int * W, int * U, int size, int e, int ro, int w_min, int w_max) {
     }
 }
 
-void runPredictor(uint16_t * in, uint16_t * out, ImageMetadata * imageMeta, PredictorMetadata * predMeta, int opType) {
+void runPredictor(uint16_t * in, uint16_t * out, struct ImageMetadata * imageMeta,
+                  struct PredictorMetadata * predMeta, int opType) {
 
     int sizeX = imageMeta->xSize;
     int sizeY = imageMeta->ySize;
@@ -192,6 +197,17 @@ void runPredictor(uint16_t * in, uint16_t * out, ImageMetadata * imageMeta, Pred
 
     int * msU = (int *)malloc(sizeX * sizeY * uwSize * sizeof(int));
     int * msW = (int *)malloc(sizeX * sizeY * uwSize * sizeof(int));
+
+    char progressBar[PB_LENGTH + 1] = {0};
+    int progress = 0;
+    char pbFormat[100];
+    sprintf(pbFormat, "%s%d%s", "\r%3ld%% [%-", PB_LENGTH, "s]");
+    memset(progressBar, '-', PB_LENGTH);
+
+    if(opType == PREDICTOR_MAP)
+        printf("Prediction...\n");
+    else
+        printf("Restoration...\n");
 
     weightInitDefault(msW, Om, P);
 
@@ -238,12 +254,24 @@ void runPredictor(uint16_t * in, uint16_t * out, ImageMetadata * imageMeta, Pred
         curBandIn  += bandSize;
         curBandOut += bandSize;
         curPredBase += bandSize;
+
+        progress = (z + 1) * (PB_LENGTH - 1) / sizeZ;
+        memset(progressBar, '#', (size_t)progress + 1);
+        printf(pbFormat, (z + 1) * 100 / sizeZ, progressBar);
     }
 
     if(msU)
         free(msU);
     if(msW)
         free(msW);
+
+    memset(progressBar, '#', PB_LENGTH);
+    printf(pbFormat, 100, progressBar);
+
+    if(opType == PREDICTOR_MAP)
+        printf("\nPrediction done.\n");
+    else
+        printf("\nRestoration done.\n");
 }
 
 size_t getAccum(size_t prevAccum, size_t prevCounter, uint32_t prevResidual, uint32_t gamma) {
@@ -273,7 +301,9 @@ unsigned getCodeWordSize(size_t counter, size_t accum) {
     return k - 1;
 }
 
-void encodeGolomb(uint16_t * in, uint32_t * out, size_t * outSize, ImageMetadata * imageMeta, EncoderMetadata * encoderMeta) {
+void encodeGolomb(uint16_t * in, uint32_t * out, size_t * outSize,
+                  struct ImageMetadata * imageMeta,
+                  struct EncoderMetadata * encoderMeta) {
 
     uint32_t sizeX = imageMeta->xSize;
     uint32_t sizeY = imageMeta->ySize;
@@ -292,6 +322,13 @@ void encodeGolomb(uint16_t * in, uint32_t * out, size_t * outSize, ImageMetadata
     unsigned k = encoderMeta->accumInitConstant;
     size_t counter = 1 << gamma_0;
     size_t accum   = (3 * (1 << (k + 6)) - 49) * counter / (1 << 7);
+
+    char progressBar[PB_LENGTH + 1] = {0};
+    int  progress = 0;
+    char pbFormat[100];
+    sprintf(pbFormat, "%s%d%s", "\r%3ld%% [%-", PB_LENGTH, "s]");
+    memset(progressBar, '-', PB_LENGTH);
+    printf("Encoding...\n");
 
     uint64_t buffer = 0;
     uint32_t bitCounter = 0;
@@ -329,6 +366,9 @@ void encodeGolomb(uint16_t * in, uint32_t * out, size_t * outSize, ImageMetadata
             }
         }
         curBandIn += bandSize;
+        progress = (z + 1) * (PB_LENGTH - 1) / sizeZ;
+        memset(progressBar, '#', (size_t)progress + 1);
+        printf(pbFormat, (z + 1) * 100 / sizeZ, progressBar);
     }
     if(bitCounter > 0) {
         uint32_t val = (uint32_t)(buffer << (32 - bitCounter));
@@ -337,9 +377,14 @@ void encodeGolomb(uint16_t * in, uint32_t * out, size_t * outSize, ImageMetadata
     }
 
     *outSize = (curBandOut - out) * sizeof (uint32_t);
+
+    memset(progressBar, '#', PB_LENGTH);
+    printf(pbFormat, 100, progressBar);
+    printf("\nEncoding done.\n");
 }
 
-void decodeGolomb(uint32_t * in, uint16_t * out, ImageMetadata * imageMeta, EncoderMetadata * encoderMeta) {
+void decodeGolomb(uint32_t * in, uint16_t * out, struct ImageMetadata * imageMeta,
+                  struct EncoderMetadata * encoderMeta) {
 
     uint32_t sizeX = imageMeta->xSize;
     uint32_t sizeY = imageMeta->ySize;
@@ -358,6 +403,13 @@ void decodeGolomb(uint32_t * in, uint16_t * out, ImageMetadata * imageMeta, Enco
     unsigned k = encoderMeta->accumInitConstant;
     size_t counter = 1 << gamma_0;
     size_t accum   = (3 * (1 << (k + 6)) - 49) * counter / (1 << 7);
+
+    char progressBar[PB_LENGTH + 1] = {0};
+    int progress = 0;
+    char pbFormat[100];
+    sprintf(pbFormat, "%s%d%s", "\r%3ld%% [%-", PB_LENGTH, "s]");
+    memset(progressBar, '-', PB_LENGTH);
+    printf("Decoding...\n");
 
     uint64_t buffer = 0;
     uint64_t lastBit = 1ull << 63;
@@ -421,7 +473,15 @@ void decodeGolomb(uint32_t * in, uint16_t * out, ImageMetadata * imageMeta, Enco
         }
         bandsCounter++;
         curBandOut += bandSize;
+
+        progress = bandsCounter * (PB_LENGTH - 1) / sizeZ;
+        memset(progressBar, '#', (size_t)progress + 1);
+        printf(pbFormat, bandsCounter * 100 / sizeZ, progressBar);
     }
+
+    memset(progressBar, '#', PB_LENGTH);
+    printf(pbFormat, 100, progressBar);
+    printf("\nDecoding done.\n");
 }
 
 void swopBytes(uint16_t * p, size_t size) {
@@ -440,13 +500,15 @@ int loadFromPGM(char *fileName, uint16_t *data[], unsigned * sizeX, unsigned * s
         return -1;
 
     fscanf(fp, "%s", buffer);
-    if(strcmp(buffer, "P5"))
+    if(strcmp(buffer, "P5")) {
+        printf("File %s has an invalid format. Must be PGM.\n", fileName);
         return -1;
+    }
     if(fscanf(fp, "%u%u%u", sizeX, sizeY, maxValue) != 3)
         return -1;
 
     size_t size = *sizeX * *sizeY;
-    int bitsPerChannel = int(log(*maxValue + 1.0) / log(2.0));
+    int bitsPerChannel = (int)(log(*maxValue + 1.0) / log(2.0));
 
     if(!(8 < bitsPerChannel && bitsPerChannel <= 16))
         return -1;
@@ -503,16 +565,18 @@ int saveToPGM(char *fileName, uint16_t data[], unsigned sizeX, unsigned sizeY, u
 }
 
 int saveCompressedImage(char * fileName, void * data, size_t dataSize,
-                        ImageMetadata * imageMeta, PredictorMetadata * predMeta, EncoderMetadata * encoderMeta) {
+                        struct ImageMetadata * imageMeta,
+                        struct PredictorMetadata * predMeta,
+                        struct EncoderMetadata * encoderMeta) {
 
     FILE * fp;
     fp = fopen(fileName, "wb");
     if(!fp)
         return -1;
 
-    size_t i_size = sizeof (ImageMetadata);
-    size_t p_size = sizeof (PredictorMetadata);
-    size_t e_size = sizeof (EncoderMetadata);
+    size_t i_size = sizeof (struct ImageMetadata);
+    size_t p_size = sizeof (struct PredictorMetadata);
+    size_t e_size = sizeof (struct EncoderMetadata);
 
     size_t total = 0;
 
@@ -530,16 +594,18 @@ int saveCompressedImage(char * fileName, void * data, size_t dataSize,
 }
 
 int loadCompressedImage(char * fileName, void ** data, size_t * dataSize,
-                        ImageMetadata * imageMeta, PredictorMetadata * predMeta, EncoderMetadata * encoderMeta) {
+                        struct ImageMetadata * imageMeta,
+                        struct PredictorMetadata * predMeta,
+                        struct EncoderMetadata * encoderMeta) {
 
     FILE * fp;
     fp = fopen(fileName, "rb");
     if(!fp)
         return -1;
 
-    size_t i_size = sizeof (ImageMetadata);
-    size_t p_size = sizeof (PredictorMetadata);
-    size_t e_size = sizeof (EncoderMetadata);
+    size_t i_size = sizeof (struct ImageMetadata);
+    size_t p_size = sizeof (struct PredictorMetadata);
+    size_t e_size = sizeof (struct EncoderMetadata);
 
     size_t headerSize = i_size + p_size + e_size;
 
@@ -576,7 +642,8 @@ int loadCompressedImage(char * fileName, void ** data, size_t * dataSize,
     return 0;
 }
 
-void printUsage()
+void printUsage(void)
 {
-    printf("HELP INFO\n");
+    printf("fl-compressor.exe <--compress | --decompress> <file1 file2 ...>"
+           " --output <file_name> [options]\n");
 }

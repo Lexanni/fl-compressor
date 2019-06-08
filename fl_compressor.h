@@ -1,7 +1,9 @@
-#ifndef FUNCTIONS_H
-#define FUNCTIONS_H
+#ifndef FL_COMPRESSOR_H
+#define FL_COMPRESSOR_H
 
 #include <inttypes.h>
+
+#define PB_LENGTH 50
 
 struct ImageMetadata {
     unsigned userData     : 8;
@@ -50,14 +52,18 @@ enum {
     PREDICTOR_RESTORE
 };
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int getLocalSum(uint16_t * currentBand, int sizeY, int sizeX, int y, int x);
 int clip(int val, int val_min, int val_max);
 int sgn_plus(int val);
 int mod_R(int x, int R);
-int d(uint16_t *currentBand, int sizeY, int sizeX, int y, int x);
-int dN(uint16_t *currentBand, int sizeY, int sizeX, int y, int x);
-int dW(uint16_t *currentBand, int sizeY, int sizeX, int y, int x);
-int dNW(uint16_t * currentBand, int sizeY, int sizeX, int y, int x);
+int d(uint16_t *currentBand, int sizeY, int sizeX, int y, int x, int localSum);
+int dN(uint16_t *currentBand, int sizeY, int sizeX, int y, int x, int localSum);
+int dW(uint16_t *currentBand, int sizeY, int sizeX, int y, int x, int localSum);
+int dNW(uint16_t * currentBand, int sizeY, int sizeX, int y, int x, int localSum);
 void getU(int * U, int P, uint16_t *image, int sizeY, int sizeX, int z, int y, int x);
 void weightInitDefault(int * W, int om, int P);
 int getPredictedD(int * U, int * W, int size);
@@ -65,19 +71,23 @@ int getScalingExp(int D, int Om, int v_min, int v_max, int t, int t_inc, int Nx)
 uint16_t getMappedPredictionResidual(int s, int scale_s_pred, int s_min, int s_max);
 uint16_t getRestoredValue(int mappedResidual, int scale_s_pred, int s_min, int s_max, int s_mid);
 void updateW(int * W, int * U, int size, int e, int ro, int w_min, int w_max);
-void runPredictor(uint16_t *in, uint16_t *out, ImageMetadata * imageMeta, PredictorMetadata * predMeta, int opType);
+void runPredictor(uint16_t *in, uint16_t *out, struct ImageMetadata * imageMeta, struct PredictorMetadata * predMeta, int opType);
 size_t getAccum(size_t prevAccum, size_t prevCounter, uint32_t prevResidual, uint32_t gamma);
 size_t getCounter(size_t prevCounter, unsigned gamma);
 unsigned getCodeWordSize(size_t counter, size_t accum);
-void encodeGolomb(uint16_t * in, uint32_t * out, size_t * outSize, ImageMetadata * imageMeta, EncoderMetadata * encoderMeta);
-void decodeGolomb(uint32_t * in, uint16_t * out, ImageMetadata * imageMeta, EncoderMetadata * encoderMeta);
+void encodeGolomb(uint16_t * in, uint32_t * out, size_t * outSize, struct ImageMetadata * imageMeta, struct EncoderMetadata * encoderMeta);
+void decodeGolomb(uint32_t * in, uint16_t * out, struct ImageMetadata * imageMeta, struct EncoderMetadata * encoderMeta);
 int loadFromPGM(char *fileName, uint16_t *data[], unsigned * sizeX, unsigned * sizeY, unsigned * maxValue);
 int saveToPGM(char *fileName, uint16_t data[], unsigned sizeX, unsigned sizeY, unsigned maxValue);
 void swopBytes(uint16_t * p, size_t size);
 int loadCompressedImage(char * fileName, void ** data, size_t * dataSize,
-                        ImageMetadata * imageMeta, PredictorMetadata * predMeta, EncoderMetadata * encoderMeta);
+                        struct ImageMetadata * imageMeta, struct PredictorMetadata * predMeta, struct EncoderMetadata * encoderMeta);
 int saveCompressedImage(char * fileName, void * data, size_t dataSize,
-                        ImageMetadata * imageMeta, PredictorMetadata * predMeta, EncoderMetadata * encoderMeta);
-void printUsage();
+                        struct ImageMetadata * imageMeta, struct PredictorMetadata * predMeta, struct EncoderMetadata * encoderMeta);
+void printUsage(void);
 
-#endif // FUNCTIONS_H
+#ifdef __cplusplus
+}
+#endif
+
+#endif // FL_COMPRESSOR_H

@@ -1,7 +1,7 @@
-#ifdef UNIT_TESTS
-
 #include "catch.hpp"
-#include "functions.h"
+#include "fl_compressor.h"
+#include <stdlib.h>
+#include <string.h>
 
 TEST_CASE( "getLocalSum", "[local_sum]" ) {
     uint16_t ms[] = {
@@ -60,10 +60,10 @@ TEST_CASE("d", "[d]") {
     };
     int sizeX = 7;
     int sizeY = 5;
-    REQUIRE (d(ms, sizeY, sizeX, 1, 1) ==  -4);
-    REQUIRE (d(ms, sizeY, sizeX, 0, 1) == -20);
-    REQUIRE (d(ms, sizeY, sizeX, 1, 0) ==   2);
-    REQUIRE (d(ms, sizeY, sizeX, 4, 6) ==  11);
+    REQUIRE (d(ms, sizeY, sizeX, 1, 1, getLocalSum(ms, sizeY, sizeX, 1, 1)) ==  -4);
+    REQUIRE (d(ms, sizeY, sizeX, 0, 1, getLocalSum(ms, sizeY, sizeX, 0, 1)) == -20);
+    REQUIRE (d(ms, sizeY, sizeX, 1, 0, getLocalSum(ms, sizeY, sizeX, 1, 0)) ==   2);
+    REQUIRE (d(ms, sizeY, sizeX, 4, 6, getLocalSum(ms, sizeY, sizeX, 4, 6)) ==  11);
 }
 
 TEST_CASE("dN", "[dN]") {
@@ -76,10 +76,10 @@ TEST_CASE("dN", "[dN]") {
     };
     int sizeX = 7;
     int sizeY = 5;
-    REQUIRE (dN(ms, sizeY, sizeX, 1, 1) == -12);
-    REQUIRE (dN(ms, sizeY, sizeX, 0, 1) ==   0);
-    REQUIRE (dN(ms, sizeY, sizeX, 1, 0) ==  10);
-    REQUIRE (dN(ms, sizeY, sizeX, 4, 6) ==  -5);
+    REQUIRE (dN(ms, sizeY, sizeX, 1, 1, getLocalSum(ms, sizeY, sizeX, 1, 1)) == -12);
+    REQUIRE (dN(ms, sizeY, sizeX, 0, 1, getLocalSum(ms, sizeY, sizeX, 0, 1)) ==   0);
+    REQUIRE (dN(ms, sizeY, sizeX, 1, 0, getLocalSum(ms, sizeY, sizeX, 1, 0)) ==  10);
+    REQUIRE (dN(ms, sizeY, sizeX, 4, 6, getLocalSum(ms, sizeY, sizeX, 4, 6)) ==  -5);
 }
 
 TEST_CASE("dW", "[dW]") {
@@ -92,10 +92,10 @@ TEST_CASE("dW", "[dW]") {
     };
     int sizeX = 7;
     int sizeY = 5;
-    REQUIRE (dW(ms, sizeY, sizeX, 1, 1) ==   0);
-    REQUIRE (dW(ms, sizeY, sizeX, 0, 1) ==   0);
-    REQUIRE (dW(ms, sizeY, sizeX, 1, 0) ==  10);
-    REQUIRE (dW(ms, sizeY, sizeX, 4, 6) ==  11);
+    REQUIRE (dW(ms, sizeY, sizeX, 1, 1, getLocalSum(ms, sizeY, sizeX, 1, 1)) ==   0);
+    REQUIRE (dW(ms, sizeY, sizeX, 0, 1, getLocalSum(ms, sizeY, sizeX, 0, 1)) ==   0);
+    REQUIRE (dW(ms, sizeY, sizeX, 1, 0, getLocalSum(ms, sizeY, sizeX, 1, 0)) ==  10);
+    REQUIRE (dW(ms, sizeY, sizeX, 4, 6, getLocalSum(ms, sizeY, sizeX, 4, 6)) ==  11);
 }
 
 TEST_CASE("dNW", "[dNW]") {
@@ -108,10 +108,10 @@ TEST_CASE("dNW", "[dNW]") {
     };
     int sizeX = 7;
     int sizeY = 5;
-    REQUIRE (dNW(ms, sizeY, sizeX, 1, 1) ==   8);
-    REQUIRE (dNW(ms, sizeY, sizeX, 0, 1) ==   0);
-    REQUIRE (dNW(ms, sizeY, sizeX, 1, 0) ==  10);
-    REQUIRE (dNW(ms, sizeY, sizeX, 4, 6) ==  -1);
+    REQUIRE (dNW(ms, sizeY, sizeX, 1, 1, getLocalSum(ms, sizeY, sizeX, 1, 1)) ==   8);
+    REQUIRE (dNW(ms, sizeY, sizeX, 0, 1, getLocalSum(ms, sizeY, sizeX, 0, 1)) ==   0);
+    REQUIRE (dNW(ms, sizeY, sizeX, 1, 0, getLocalSum(ms, sizeY, sizeX, 1, 0)) ==  10);
+    REQUIRE (dNW(ms, sizeY, sizeX, 4, 6, getLocalSum(ms, sizeY, sizeX, 4, 6)) ==  -1);
 }
 
 TEST_CASE("getU", "[getU]") {
@@ -534,16 +534,16 @@ TEST_CASE("save/load compressed image") {
 
     CHECK(saveCompressedImage(fileName, data, dataSize, &imageMeta, &predMeta, &encoderMeta) == 0);
 
-    memset(&l_imageMeta, 0, sizeof (ImageMetadata));
-    memset(&l_predMeta,  0, sizeof (PredictorMetadata));
-    memset(&l_encoderMeta, 0, sizeof (EncoderMetadata));
+    memset(&l_imageMeta, 0, sizeof (struct ImageMetadata));
+    memset(&l_predMeta,  0, sizeof (struct PredictorMetadata));
+    memset(&l_encoderMeta, 0, sizeof (struct EncoderMetadata));
 
     CHECK(loadCompressedImage(fileName, (void **)&loadedData, &loadDadaSize,
                               &l_imageMeta, &l_predMeta, &l_encoderMeta) == 0);
 
-    CHECK(memcmp(&imageMeta, &l_imageMeta, sizeof (ImageMetadata)) == 0);
-    CHECK(memcmp(&predMeta,  &l_predMeta, sizeof (PredictorMetadata)) == 0);
-    CHECK(memcmp(&encoderMeta, &l_encoderMeta, sizeof (EncoderMetadata)) == 0);
+    CHECK(memcmp(&imageMeta, &l_imageMeta, sizeof (struct ImageMetadata)) == 0);
+    CHECK(memcmp(&predMeta,  &l_predMeta, sizeof (struct PredictorMetadata)) == 0);
+    CHECK(memcmp(&encoderMeta, &l_encoderMeta, sizeof (struct EncoderMetadata)) == 0);
 
     if(loadedData) {
         for(int i = 0; i < size; i++) {
@@ -554,5 +554,3 @@ TEST_CASE("save/load compressed image") {
     }
 
 }
-
-#endif // UNIT_TESTS
