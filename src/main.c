@@ -7,6 +7,9 @@
 
 #define MAX_FILES 500
 #define MAX_FILE_NAME_LENGHT 128
+#define MAX_PATH_LENGHT 1024
+
+void printUsage(void);
 
 int main(int argc, char* argv[])
 {
@@ -53,7 +56,7 @@ int main(int argc, char* argv[])
     encoderMeta.accumInitTableFlag   = 0;  // : 1;
 
     int compress = 1;
-    char outFileName[MAX_FILE_NAME_LENGHT] = "output";
+    char outFileName[MAX_FILE_NAME_LENGHT] = {0};
 
     char * imageNames[MAX_FILES] = {NULL};
     unsigned imageCounter = 0;
@@ -79,13 +82,35 @@ int main(int argc, char* argv[])
         }
         else if (!strcmp(argv[i], "--output")) {
             strncpy(outFileName, argv[i + 1], MAX_FILE_NAME_LENGHT - 1);
+
+            if(!compress) {
+                char * pt;
+                pt = strrchr(outFileName, '\\');
+                if(pt != NULL && pt[1] == '\0')
+                    pt[0] = '\0';
+                pt = strrchr(outFileName, '/');
+                if(pt != NULL && pt[1] == '\0')
+                    pt[0] = '\0';
+
+                FILE * f;
+                char buf[MAX_PATH_LENGHT] = {0};
+                sprintf(buf, "%s/%s", outFileName, "test_dir_exist");
+                f = fopen(buf, "w");
+                if(f == NULL)
+                {
+                    printf("Output path not exist. Make path and try again.");
+                    return -1;
+                }
+                fclose(f);
+                remove(buf);
+            }
             i++;
         }
         else if (!strcmp(argv[i], "-U")) {
             int U = atoi(argv[i + 1]);
             if(U <= 0 || U > 20) {
                 printf("Incorrect value of -U key (unary limit).\n"
-                       "Correct: 0 < U <= 20\n");
+                       "Correct: 1 <= U <= 20\n");
                 printUsage();
                 return -1;
             }
@@ -196,10 +221,10 @@ int main(int argc, char* argv[])
     unsigned sizeZ = 0;
     unsigned maxValue = 0;
 
-    struct timespec start, stop;
+    clock_t start, stop;
 
     if(compress) {
-        clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &start);
+        start = clock();
         printf("Opening files...\n");
         for (unsigned i = 0; i < imageCounter; i++) {
             int res = loadFromPGM(imageNames[i], &images[loadCounter],
@@ -255,14 +280,10 @@ int main(int argc, char* argv[])
         free(mappedResiduals);
         saveCompressedImage(outFileName, encodedData, outSize, &imageMeta, &predMeta, &encoderMeta);
         free(encodedData);
-
-        clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &stop);
-        struct timespec elapsed_time;
-        elapsed_time.tv_sec = stop.tv_sec - start.tv_sec;
-        elapsed_time.tv_nsec = stop.tv_nsec - start.tv_nsec;
+        stop = clock();
 
         printf("Compression done.\n");
-        printf("Elapsed time is %d.%d seconds.\n", elapsed_time.tv_sec, elapsed_time.tv_nsec / 1000);
+        printf("Elapsed time is %.2lf seconds.\n", (double)(stop - start)/CLOCKS_PER_SEC);
 
         outSize += sizeof (struct ImageMetadata) +
             sizeof (struct PredictorMetadata) +
@@ -273,7 +294,7 @@ int main(int argc, char* argv[])
         printf("Compression ratio is %.2lf%%.\n", (double)outSize * 100 / size);
     } else {
         for (unsigned i = 0; i < imageCounter; i++) {
-            clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &start);
+            start = clock();
             size_t dataSize = 0;
 
             printf("Starting decompression %s...\n", imageNames[i]);
@@ -311,19 +332,34 @@ int main(int argc, char* argv[])
             free(mappedResiduals);
             char buffer[1024] = {0};
             for(unsigned j = 0; j < sizeZ; j++) {
-                sprintf(buffer, "%s%04d.pgm", outFileName, j);
+                sprintf(buffer, "%s/%04d.pgm", outFileName, j);
                 saveToPGM(buffer, data + bandTotal * j, sizeX, sizeY, maxValue);
             }
             free(data);
-            clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &stop);
-            struct timespec elapsed_time;
-            elapsed_time.tv_sec = stop.tv_sec - start.tv_sec;
-            elapsed_time.tv_nsec = stop.tv_nsec - start.tv_nsec;
+            stop = clock();
 
             printf("Decompression done.\n");
             printf("Decompressed %d files totaling %.2lf MB\n", sizeZ, (double)size / (1 << 20));
-            printf("Elapsed time is %d.%d seconds.\n", elapsed_time.tv_sec, elapsed_time.tv_nsec / 1000);
+            printf("Elapsed time is %.2lf seconds.\n", (double)(stop - start) / CLOCKS_PER_SEC);
         }
     }
     return 0;
+}
+
+void printUsage(void)
+{
+    printf("Usage for compression:\n\n"
+           "\tfl-compressor.exe --compress <file1 file2 ...>  --output <file_name> [options]\n\n"
+           "Options:\n"
+           "\t-U      - unary limit (integer from 1 to 20)\n"
+           "\t-P      - count of previous band for prediction (integer from 0 to 15)\n"
+           "\t-Om     - weight component resolution (integer from 0 to 15)\n"
+           "\t-K      - accumulator init constant (integer from 0 to 15)\n"
+           "\t-G      - init count exponent (integer from 1 to 16)\n"
+           "\t-t_inc  - weight update scaling exponent change interval (integer from 0 to 15)\n"
+           "\t-nu_min - weight update scaling exponent initial parameter (integer from 0 to 15)\n"
+           "\t-nu_max - weight update scaling exponent final parameter (integer from 0 to 15)\n\n"
+           "Usage fro decompression:\n\n"
+           "\tfl-compressor.exe --decompress <compressed file>  --output <path to output directory>\n\n"
+           );
 }
