@@ -68,9 +68,3 @@ Thumbs.db
 # Binaries
 # --------
 *.dll
-*.exe
-
-# Source and compressed images
-# --------
-*.fl
-*.pgm
